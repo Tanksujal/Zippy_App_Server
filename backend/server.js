@@ -8,7 +8,7 @@ const app = express()
 dotenv.config()
 Connectdb()
 const corsOptions = {
-    origin: 'http://localhost:5173', // Replace with the client URL
+    origin: 'https://zippyzest.in', // Replace with the client URL
     credentials: true, // Allow credentials (cookies, authorization headers, etc.)
   };
 app.use(cors(corsOptions))
