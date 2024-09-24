@@ -152,12 +152,12 @@ console.log(populatedCartItems);
       paymentStatus: isCOD ? 'Pending' : 'Completed',
     });
 
-    // await newOrder.save();
+    await newOrder.save();
 
-    // Clear the cart after placing the order
-    // cart.cartitems = [];
-    // cart.totalPrice = 0;
-    // await cart.save();
+
+    cart.cartitems = [];
+    cart.totalPrice = 0;
+    await cart.save();
 
     if (!isCOD) {
       const firstSeller = populatedCartItems[0]; // Get the first seller's info for the UPI payment

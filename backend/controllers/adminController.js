@@ -21,10 +21,10 @@ const sentOtp = async(req,res) => {
           console.log(token);
       
           res.cookie('verifytoken', token, {
-          //   httpOnly: true,
-          //   secure: false, // Set to 'true' in production
-          //   sameSite: 'Lax', // Adjust as necessary
-          //   maxAge: 3600000 // 1 hour
+            httpOnly: true,
+            secure: true, // Set to 'true' in production
+            sameSite: 'None', // Adjust as necessary
+            maxAge: 3600000 // 1 hour
           });
       
           res.status(200).send({success : true, message: `OTP sent.`, otp, token }); // Remove OTP in production
@@ -86,7 +86,12 @@ const VerifyOtp = async (req, res) => {
         );
       
         // Set the new token as a cookie
-        res.cookie('sellertoken', newToken);
+        res.cookie('sellertoken', newToken),{
+          httpOnly: true,
+            secure: true, // Set to 'true' in production
+            sameSite: 'None', // Adjust as necessary
+            maxAge: 3600000 // 1 hour
+        };
         res.status(200).send({
           success: true,
           message: "OTP verified and user registered/updated successfully.",
@@ -200,9 +205,10 @@ const SellerLogin = async (req, res) => {
 
     // Send the token as a cookie
     res.cookie('maintoken', token, {
-      // httpOnly: true,
-      // secure: process.env.NODE_ENV === 'production', // Set to true in production
-      // maxAge: 60 * 60 * 1000  // 1 hour
+      httpOnly: true,
+      secure: true, // Set to 'true' in production
+      sameSite: 'None', // Adjust as necessary
+      maxAge: 3600000 // 1 hour
     });
 
     // Send the response
@@ -311,6 +317,9 @@ const Totalsellers = async(req,res) => {
       message: "Internal server error"
     })
   }
+}
+const Forgotpass = async(req,res) => {
+  
 }
   
 module.exports = {
