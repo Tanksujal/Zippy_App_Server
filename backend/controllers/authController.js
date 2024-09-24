@@ -21,10 +21,10 @@ const sentOtp = async(req,res) => {
       
     
         res.cookie('token', token, {
-          httpOnly: true,
-          secure: false, // Set to 'true' in production
-          sameSite: 'Lax', // Adjust as necessary
-          maxAge: 3600000 // 1 hour
+          // httpOnly: true,
+          // secure: false, // Set to 'true' in production
+          // sameSite: 'Lax', // Adjust as necessary
+          // maxAge: 3600000 // 1 hour
         });
     
         res.status(200).send({
