@@ -7,19 +7,25 @@ const addcart = async(req,res) => {
         console.log(userId);
         
         const {productId,quantity,price} = req.body
-        let cart = await Cart.findOne({userId}).populate('cartitems.productId');
+        console.log(req.body);
+        
+        let cart = await Cart.findOne({userId}).populate('cartitems');
         console.log(cart);
         
         if(!cart) {
             cart = new Cart({userId,cartitems:[]})
         }
         console.log(cart);
-        const existingItem = cart.cartitems.find(item => item.productId.toString()===productId)
+        const existingItem = await cart.cartitems.find((item)=> {
+            console.log(item.productId);
+            
+            return item.productId == productId
+        })
         if(existingItem) {
             existingItem.quantity += quantity
             existingItem.price = price
         } else {
-            const cartItem =  new CartItems({productId,quantity,price})
+            const cartItem = await new CartItems({productId,quantity,price})
             await cartItem.save();
             await cartItem.populate('productId')
             cart.cartitems.push(cartItem)
@@ -85,7 +91,8 @@ const deletecart = async(req,res) => {
         const userId = req.user.id;
         const id = req.query.id;
         let cart = await Cart.findOne({ userId }).populate('cartitems');
-
+        console.log(cart);
+        
         if (!cart) {
             return res.status(404).send({
                 success: false,
