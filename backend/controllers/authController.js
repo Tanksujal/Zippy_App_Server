@@ -23,7 +23,7 @@ const sentOtp = async(req,res) => {
         res.cookie('token', token, {
           httpOnly: true,
           secure: true, // Set to 'true' in production
-          sameSite: 'Lax', // Adjust as necessary
+          sameSite: 'None', // Adjust as necessary
           maxAge: 3600000 // 1 hour
         });
     
@@ -40,6 +40,8 @@ const VerifyOtp = async (req, res) => {
   try {
     const { otp } = req.body;
     const token = req.cookies.token;
+    console.log(token);
+    
 
     if (!token) {
       return res.status(400).send({ 
@@ -87,7 +89,7 @@ const VerifyOtp = async (req, res) => {
       res.cookie('token', newToken, {
         httpOnly: true,
         secure: true, // Set to 'true' in production
-        sameSite: 'Lax', // Adjust as necessary
+        sameSite: 'None', // Adjust as necessary
         maxAge: 3600000 // 1 hour // 10 minutes
       });
       res.status(200).send({
