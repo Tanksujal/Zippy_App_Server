@@ -227,7 +227,7 @@ const SellerLogin = async (req, res) => {
   }
 };
 const logout = (req, res) => {
-  res.clearCookie('sellertoken'); // Clear seller token cookie
+  res.clearCookie('maintoken'); // Clear seller token cookie
   if (!req.cookies.sellertoken) {
     return res.status(400).json({
       success: false,
@@ -319,7 +319,7 @@ const Totalsellers = async(req,res) => {
   }
 }
 const Forgotpass = async(req,res) => {
-  
+
 }
   
 module.exports = {
