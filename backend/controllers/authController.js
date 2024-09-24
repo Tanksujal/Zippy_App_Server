@@ -18,12 +18,12 @@ const sentOtp = async(req,res) => {
           user.otpExpires = otpExpires;
         }
         const token = jwt.sign({ mobileNumber, otp, otpExpires }, process.env.SECRET_KEY_JWT, { expiresIn: "10m" });
-        console.log(token);
+      
     
         res.cookie('token', token, {
           httpOnly: true,
           secure: false, // Set to 'true' in production
-          sameSite: 'None', // Adjust as necessary
+          sameSite: 'Lax', // Adjust as necessary
           maxAge: 3600000 // 1 hour
         });
     
@@ -35,6 +35,8 @@ const sentOtp = async(req,res) => {
         console.log(error);
         return res.status(500).json({ message: "Internal server error." });
       }
+
+
 }
 const VerifyOtp = async (req, res) => {
   try {
@@ -225,10 +227,6 @@ const getAuth = async(req,res) => {
     });
   }
 }
-
-
-
-
 module.exports = {
     sentOtp , VerifyOtp ,logout,alluser,getuser,getAuth,updateUser
 }
