@@ -21,10 +21,10 @@ const sentOtp = async(req,res) => {
       
     
         res.cookie('token', token, {
-          // httpOnly: true,
-          // secure: false, // Set to 'true' in production
-          // sameSite: 'Lax', // Adjust as necessary
-          // maxAge: 3600000 // 1 hour
+          httpOnly: true,
+          secure: true, // Set to 'true' in production
+          sameSite: 'None', // Adjust as necessary
+          maxAge: 3600000 // 1 hour
         });
     
         res.status(200).send({
@@ -90,7 +90,7 @@ const VerifyOtp = async (req, res) => {
       // Set the new token as a cookie
       res.cookie('token', newToken, {
         httpOnly: true,
-        secure: false, // Set to 'true' in production
+        secure: true, // Set to 'true' in production
         sameSite: 'None', // Adjust as necessary
         maxAge: 3600000 // 1 hour // 10 minutes
       });
