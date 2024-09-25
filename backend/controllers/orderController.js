@@ -222,7 +222,78 @@ const  getOrder = async (req, res) => {
       });
     }
   };
+  const Updateorder = async(req,res) => {
+    try {
+     let orderId = req.query.id;
+     
+      const { status } = req.body; // New status from the frontend (e.g., "Ready to Ship")
+  
+      // Find the order by ID
+      const order = await Order.findById(orderId);
+  console.log(order);
+  
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found',
+        });
+      }
+  
+    
+      order.status = status;
+      await order.save();
+  
+      res.status(200).json({
+        success: true,
+        message: `Order status updated to ${status}`,
+        order,
+      });
+    } catch (error) {
+      console.error('Error updating order:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update order status',
+      });
+  }}
+  const updateBulkOrderStatus = async (req, res) => {
+    try {
+      const { orderIds, status } = req.body; // orderIds: array of IDs, status: new status
+  
+      if (!Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No orders provided',
+        });
+      }
+  
+      // Find orders and update their status in bulk
+      const updatedOrders = await Order.updateMany(
+        { _id: { $in: orderIds } }, // Filter: update only the orders whose IDs are in the orderIds array
+        { $set: { status: status } }, // Set the new status for the orders
+        { multi: true, new: true } // Options: multi allows updating multiple documents
+      );
+  
+      if (!updatedOrders) {
+        return res.status(404).json({
+          success: false,
+          message: 'Orders not found',
+        });
+      }
+  
+      res.status(200).json({
+        success: true,
+        message: `Orders status updated to ${status}`,
+        updatedOrders,
+      });
+    } catch (error) {
+      console.error('Error updating orders:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update orders status',
+      });
+    }
+  };
   
 module.exports = {
-    createOrder,getOrder
+    createOrder,getOrder,Updateorder,updateBulkOrderStatus
 }
