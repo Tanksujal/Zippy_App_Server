@@ -4,6 +4,6 @@ const { addcart, getcart, deletecart, updatecart } = require('../controllers/car
 const router = express.Router()
 router.post('/addcart',isLoggedIn,addcart)
 router.get('/getcart',isLoggedIn,getcart)
-router.post('/deletecart',isLoggedIn,deletecart)
+router.get('/deletecart',isLoggedIn,deletecart)
 router.post('/updatecart',isLoggedIn,updatecart)
 module.exports = router

@@ -84,7 +84,11 @@ const orderSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  invoiceDownloaded: {
+    type: Boolean,
+    default: false, // Default to false, meaning it hasn't been downloaded yet
+  },
 });
 
 module.exports = mongoose.model('Order', orderSchema);

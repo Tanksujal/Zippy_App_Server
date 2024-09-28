@@ -3,6 +3,9 @@ const Order = require('../models/order')
 const Product = require('../models/product')
 const Seller = require('../models/seller')
 const QRCode = require('qrcode');
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
 // const createOrder = async (req, res) => {
 //     try {
 //       const userId = req.user.id;
@@ -93,104 +96,120 @@ const QRCode = require('qrcode');
 //       });
 //     }
 //   };
-const createOrder = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { shippingAddress, paymentMethod, isCOD } = req.body;
+  const createOrder = async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { shippingAddress, paymentMethod, isCOD } = req.body;
 
-    // Fetch the user's cart
-    const cart = await Cart.findOne({ userId }).populate('cartitems');
+      // Fetch the user's cart
+      const cart = await Cart.findOne({ userId }).populate('cartitems');
 
-    if (!cart || cart.cartitems.length === 0) {
-      return res.status(404).send({
+      if (!cart || cart.cartitems.length === 0) {
+        return res.status(404).send({
+          success: false,
+          message: 'Cart is empty',
+        });
+      }
+
+      // Fetch sellerId and sellerName for each product in the cartitems
+      const populatedCartItems = await Promise.all(
+        cart.cartitems.map(async (item) => {
+          // Fetch the product to get the sellerId
+          const product = await Product.findById(item.productId).select('sellerId');
+          
+          // Fetch the seller's name from the Seller model based on sellerId
+          const seller = await Seller.findById(product.sellerId); // Assuming 'name' contains sellerName
+          
+          
+          
+          return {
+            product: item.productId,   // The product reference
+            quantity: item.quantity,   // The quantity of this product in the cart
+            price: item.price,         // The price of the product
+            sellerId: product.sellerId, // Fetch the sellerId from the product
+            sellerName: seller.username    // Fetch the seller's name from the Seller model
+          };
+        })
+      );
+
+
+      const totalAmount = populatedCartItems.reduce((total, item) => {
+        return total + item.price * item.quantity;
+      }, 0);
+
+      // Create the new order
+      const newOrder = new Order({
+        user: userId,
+        items: populatedCartItems, // Use the populated cart items with sellerId and sellerName
+        totalAmount,
+        shippingAddress: {
+          addressLine1: shippingAddress.addressLine1,
+          addressLine2: shippingAddress.addressLine2 || '',
+          city: shippingAddress.city,
+          state: shippingAddress.state,
+          postalCode: shippingAddress.postalCode,
+          country: shippingAddress.country,
+        },
+        paymentMethod: isCOD ? 'Cash On Delivery' : paymentMethod,
+        isCOD: isCOD || false,
+        paymentStatus: isCOD ? 'Pending' : 'Completed',
+      });
+
+      await newOrder.save();
+      await Promise.all(
+        populatedCartItems.map(async (item) => {
+          const product = await Product.findById(item.product);
+          console.log(product);
+          
+          if (product) {
+            // Adjust stock based on productUnit
+            if (product.productUnit === 'kg' || product.productUnit === 'gram') {
+              product.productStock -= item.quantity; // Decrement stock by the quantity ordered
+            }
+            console.log(product.productStock);
+            
+            await product.save(); // Save the updated product stock
+          }
+        })
+      );
+      
+
+      cart.cartitems = [];
+      cart.totalPrice = 0;
+      await cart.save();
+
+      if (!isCOD) {
+        const firstSeller = populatedCartItems[0]; // Get the first seller's info for the UPI payment
+        
+        // UPI payment link (assuming payment goes to the first seller)
+        const upiLink = `upi://pay?pa=${firstSeller.sellerId}@bank&pn=${firstSeller.sellerName}&am=${totalAmount}&cu=INR&tn=Order Payment`;
+        console.log(upiLink);
+        
+
+        // Generate the QR code
+        const qrCode = await QRCode.toDataURL(upiLink);
+
+        res.status(201).send({
+          success: true,
+          message: 'Order placed successfully!',
+          // order: newOrder,
+          // qrCode, // Send the QR code to the frontend
+        });
+      } else {
+        res.status(201).send({
+          success: true,
+          message: 'Order placed successfully!',
+          order: newOrder,
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).send({
         success: false,
-        message: 'Cart is empty',
+        message: 'Failed to place the order.',
       });
     }
-
-    // Fetch sellerId and sellerName for each product in the cartitems
-    const populatedCartItems = await Promise.all(
-      cart.cartitems.map(async (item) => {
-        // Fetch the product to get the sellerId
-        const product = await Product.findById(item.productId).select('sellerId');
-        
-        // Fetch the seller's name from the Seller model based on sellerId
-        const seller = await Seller.findById(product.sellerId); // Assuming 'name' contains sellerName
-        console.log(seller);
-        
-        
-        return {
-          product: item.productId,   // The product reference
-          quantity: item.quantity,   // The quantity of this product in the cart
-          price: item.price,         // The price of the product
-          sellerId: product.sellerId, // Fetch the sellerId from the product
-          sellerName: seller.username    // Fetch the seller's name from the Seller model
-        };
-      })
-    );
-console.log(populatedCartItems);
-
-    const totalAmount = populatedCartItems.reduce((total, item) => {
-      return total + item.price * item.quantity;
-    }, 0);
-
-    // Create the new order
-    const newOrder = new Order({
-      user: userId,
-      items: populatedCartItems, // Use the populated cart items with sellerId and sellerName
-      totalAmount,
-      shippingAddress: {
-        addressLine1: shippingAddress.addressLine1,
-        addressLine2: shippingAddress.addressLine2 || '',
-        city: shippingAddress.city,
-        state: shippingAddress.state,
-        postalCode: shippingAddress.postalCode,
-        country: shippingAddress.country,
-      },
-      paymentMethod: isCOD ? 'Cash On Delivery' : paymentMethod,
-      isCOD: isCOD || false,
-      paymentStatus: isCOD ? 'Pending' : 'Completed',
-    });
-
-    await newOrder.save();
-
-
-    cart.cartitems = [];
-    cart.totalPrice = 0;
-    await cart.save();
-
-    if (!isCOD) {
-      const firstSeller = populatedCartItems[0]; // Get the first seller's info for the UPI payment
-      
-      // UPI payment link (assuming payment goes to the first seller)
-      const upiLink = `upi://pay?pa=${firstSeller.sellerId}@bank&pn=${firstSeller.sellerName}&am=${totalAmount}&cu=INR&tn=Order Payment`;
-      console.log(upiLink);
-      
-
-      // Generate the QR code
-      const qrCode = await QRCode.toDataURL(upiLink);
-
-      res.status(201).send({
-        success: true,
-        message: 'Order placed successfully!',
-        // order: newOrder,
-        // qrCode, // Send the QR code to the frontend
-      });
-    } else {
-      res.status(201).send({
-        success: true,
-        message: 'Order placed successfully!',
-        order: newOrder,
-      });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({
-      success: false,
-      message: 'Failed to place the order.',
-    });
-  }
-};
+  };
  
 const  getOrder = async (req, res) => {
     try {
@@ -222,6 +241,7 @@ const  getOrder = async (req, res) => {
       });
     }
   };
+  
   const Updateorder = async(req,res) => {
     try {
      let orderId = req.query.id;
@@ -293,7 +313,353 @@ const  getOrder = async (req, res) => {
       });
     }
   };
+  const pdf = require('html-pdf');
+  const imagePath = path.join(__dirname, '../uploads/Zippy zest png.png');
+  const nodemailer = require('nodemailer');
+
+// Create a transporter using SendGrid SMTP
+const transporter = nodemailer.createTransport({
+ service: 'gmail',
+  auth: {
+    user: process.env.email_name, // This is the literal username 'apikey' for SendGrid
+    pass: process.env.email_pass, // Replace with your SendGrid API key
+  },
+});
+
+// Verify the transporter configuration
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('Error configuring Nodemailer transporter:', error);
+  } else {
+    console.log('Nodemailer transporter is ready to send emails');
+  }
+});
+  const sendInvoiceEmail = async(toEmail,order,invoicePath) => {
+    try {
+      const mailOptions = {
+        from: process.env.email_name, // Sender address
+        to: toEmail, // List of receivers
+        subject: `Invoice for Order #${order._id}`, // Subject line
+        text: `Hello ${order.user.username},\n\nPlease find attached the invoice for your recent order.\n\nThank you for shopping with us!\n\nBest Regards,\nYour Company Name`, // Plain text body
+        html: `<p>Hello ${order.user.username},</p>
+               <p>Please find attached the invoice for your recent order.</p>
+               <p>Thank you for shopping with us!</p>
+               <p>Best Regards,<br>Your Company Name</p>`, // HTML body
+        attachments: [
+          {
+            filename: `invoice_${order._id}.pdf`,
+            path: invoicePath, // Path to the invoice PDF
+            contentType: 'application/pdf',
+          },
+        ],
+      };
+      let info = await transporter.sendMail(mailOptions);
+      console.log('Invoice email sent:', info.messageId);
+      return true;
+    } catch (error) {
+      console.error('Error sending invoice email:', error);
+    return false;
+    }
+  }
+  const generateInvoiceHtml = (order) => {
+    return `
+      <html>
+        <head>
+          <style>
+            .invoice-container {
+              width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+              font-family: Arial, sans-serif;
+              border: 1px solid #ddd;
+              border-radius: 8px;
+              background-color: #f9f9f9;
+            }
+            
+            .header {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 20px;
+            }
+            
+            .company-details h2 {
+              color: #ff5722;
+            }
+            
+            .invoice-details h3 {
+              text-align: center;
+            }
+            
+            .customer-section {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 20px;
+            }
+            
+            .order-details table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            
+            .order-details table th, .order-details table td {
+              padding: 8px;
+              text-align: left;
+              border: 1px solid #ddd;
+            }
+            
+            .footer {
+              margin-top: 20px;
+              text-align: right;
+            }
+            
+            .total-section p {
+              margin: 0;
+              font-weight: bold;
+            }
+          </style>
+        </head>
+        <body>
+           <div class="invoice-container">
+          <!-- Header Section -->
+          <div class="header">
+            <div class="company-details">
+              <h2><img src=${imagePath} width="100"/></h2>
+              <p>25 RUE DE PONTHIEU, 75008, PARIS 8</p>
+            </div>
+            <div class="invoice-details">
+              <h3>Invoice</h3>
+              <p>Invoice No: F-${order._id}</p>
+              <p>Date Issued: ${new Date(order.createdAt).toLocaleDateString()}</p>
+              <p>BC: 55555555</p>
+            </div>
+          </div>
   
+          <!-- Customer Section -->
+          <div class="customer-section">
+            <div class="customer-info">
+              <h4>Customer</h4>
+              <p>${order.user.username || "Customer"}</p>
+              <p>Mobile Number : +91${order.user.mobileNumber || "Customer"}</p>
+              <p>SIREN: ${order.user.siren} / VAT: ${order.user.vat}</p>
+              <p>${order.shippingAddress.addressLine1}, ${order.shippingAddress.city}, ${order.shippingAddress.country}</p>
+            </div>
+            <div class="delivery-info">
+              <h4>Deliver To</h4>
+              <p>${order.shippingAddress.addressLine1}</p>
+            </div>
+          </div>
+  
+          <!-- Order Details -->
+          <div class="order-details">
+            <h4>Order Details</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>Unit Price</th>
+                  <th>Total</th>
+                  <th>Tax</th>
+                  <th>Discount</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${order.items.map(item => `
+                  <tr>
+                    <td>${item.product.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>₹${item.price}</td>
+                    <td>₹${(item.price * item.quantity)}</td>
+                    <td>0%</td>
+                    <td>0%</td>
+                    <td>₹${((item.price * item.quantity))}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+  
+          <!-- Footer Section -->
+          <div class="footer">
+            <div class="total-section">
+              <p>Subtotal: ₹0</p>
+              <p>Discount: ₹0</p>
+              <p>Total VAT: ₹0</p>
+              <p>Total: ${order.totalAmount}</p>
+            </div>
+          </div>
+        </div>
+        </body>
+      </html>
+    `;
+  };
+  
+  const generateInvoicePdf = async(order, res) => {
+    const html = generateInvoiceHtml(order); // HTML for the invoice
+    const options = { format: 'A4' };
+    const invoicePath = `./invoices/${order._id}.pdf`;
+    pdf.create(html, options).toFile(invoicePath, (err, result) => {
+      if (err) {
+        return res.status(500).send('Error generating PDF');
+      }
+  
+      // Send the generated PDF file to the client
+      res.sendFile(path.resolve(result.filename));
+    });
+    if(order.invoiceDownloaded === false){
+      const emailSent = await sendInvoiceEmail(order.user.email, order, invoicePath);
+
+      if (emailSent) {
+        res.status(200).send({
+          success: true,
+          message: 'Invoice generated and emailed successfully!',
+        });
+      } else {
+        res.status(500).send({
+          success: false,
+          message: 'Invoice generated but failed to send email.',
+        });
+      }
+    };
+    }
+   
+
+  // const generateInvoice = (order, res) => {
+  //   const doc = new PDFDocument({ margin: 50 });
+  
+  //   // Set the file path for the invoice PDF
+  //   const invoicePath = path.join(__dirname, '../invoices', `invoice_${order._id}.pdf`);
+  
+  //   // Pipe the document to a file
+  //   const fileStream = fs.createWriteStream(invoicePath);
+  //   doc.pipe(fileStream);
+  
+  //   // Header
+  //   doc
+  //     .image('./uploads/Zippy zest  png.png', 50, 45, { width: 50 }) // Add your logo
+  //     .fillColor('#444444')
+  //     .fontSize(20)
+  //     .text('Zippy Zest', 110, 57)
+  //     .fontSize(10)
+  //     .text('Your Company Address', 200, 65, { align: 'right' })
+  //     .text('City, State, ZIP Code', 200, 80, { align: 'right' })
+  //     .moveDown();
+  
+  //   // Invoice Title and Order Details
+  //   doc
+  //     .fillColor('#000000')
+  //     .fontSize(20)
+  //     .text('Invoice', { align: 'center' })
+  //     .fontSize(12)
+  //     .moveDown()
+  //     .text(`Order ID: ${order._id}`, { align: 'left' })
+  //     .text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, { align: 'left' })
+  //     .moveDown();
+  
+  //   // Customer Information
+  //   doc
+  //     .fontSize(14)
+  //     .text('Bill To:', 50, 200)
+  //     .fontSize(12)
+  //     .text(`${order.user?.username || "user"}`, { align: 'left' })
+  //     .text(`${order.user?.mobileNumber || "mobilenumber"}`, { align: 'left' })
+  //     .text(`${order.user?.email || "email"}`, { align: 'left' })
+  //     .text(`${order.shippingAddress.addressLine1}`, { align: 'left' })
+  //     .moveDown();
+  
+  //   // Table headers
+  //   const tableTop = 300;
+  //   const itemHeaders = ["Product", "Quantity", "Unit Price", "Total Price"];
+  //   const headerXPositions = [50, 200, 300, 400];
+    
+  //   doc.fontSize(12);
+  //   itemHeaders.forEach((header, index) => {
+  //     doc.text(header, headerXPositions[index], tableTop, { bold: true });
+  //   });
+  
+  //   // Table rows for items
+  //   let itemPosition = tableTop + 25;
+  //   order.items.forEach(item => {
+  //     doc.text(item.product.name, 50, itemPosition)
+  //       .text(item.quantity, 200, itemPosition)
+  //       .text(`Rs. ${item.product.price}`, 300, itemPosition)
+  //       .text(`Rs. ${item.price}`, 400, itemPosition);
+  
+  //     itemPosition += 25;
+  //   });
+  
+  //   // Total price
+  //   doc.moveDown().fontSize(14).text(`Total Amount: Rs. ${order.totalAmount}`, { align: 'right' });
+  
+  //   // Footer
+  //   doc.fontSize(10).text('Thank you for your business!', 50, 700, { align: 'center', width: 500 });
+  
+  //   // Finalize the PDF and end the stream
+  //   doc.end();
+  //   fileStream.on('finish', () => {
+  //     // Send the file as a response
+  //     res.download(invoicePath, `invoice_${order._id}.pdf`, (err) => {
+  //       if (err) {
+  //         console.error('Error downloading the invoice:', err);
+  //         res.status(500).send('Error downloading the file');
+  //       }
+  //     });
+  //   });
+
+  //   // Handle errors in the file stream
+  //   fileStream.on('error', (error) => {
+  //     console.error('Error writing the PDF file:', error);
+  //     res.status(500).send('Error generating the PDF');
+  //   });
+ 
+  
+  //   // Send the PDF file as a response
+  //   // res.download(invoicePath, `invoice_${order._id}.pdf`, (err) => {
+  //   //   if (err) {
+  //   //     console.error('Error downloading the invoice:', err);
+  //   //   }
+  //   // });
+  // };
+
+  const genrateinvoices = async(req,res) => {
+    try {
+      const orderId = req.query.id;
+      // Fetch order details from the database
+      const order = await Order.findById(orderId)
+      .populate('items.product') // Populate product details
+      .populate('items.sellerId') // Populate seller details
+      .populate('user'); // Optionally populate user details
+      // console.log(order);
+      
+      if (!order) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+
+      // Generate the invoice PDF
+      generateInvoicePdf(order, res);
+      order.invoiceDownloaded = true; // Set it to true
+     await order.save();
+    } catch (error) {
+      console.log(error);
+      return false
+    }
+  }
+  const showstatus = async(req,res) => {
+    try {
+      const orderId = req.query.id;
+      const order = await Order.findById(orderId)
+      if(order.invoiceDownloaded){
+        return res.status(200).send({
+          success : true,
+          orderIds : order._id
+        })
+      }
+    } catch (error) {
+      console.log(error);
+      return false
+    }
+  }
 module.exports = {
-    createOrder,getOrder,Updateorder,updateBulkOrderStatus
+    createOrder,getOrder,Updateorder,updateBulkOrderStatus,genrateinvoices,showstatus
 }

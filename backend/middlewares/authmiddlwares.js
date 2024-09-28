@@ -5,8 +5,6 @@ const User = require('../models/user')
 const isLoggedIn = (req, res, next) => {
   try {
     const token = req.cookies.token;
-    
-    
     if (!token){
       return res.status(401).json({ 
         success: false, 
@@ -25,7 +23,7 @@ const isLoggedIn = (req, res, next) => {
   }
 };
 const preventReLogin = (req, res, next) => {
-    const token = req.cookies.maintoken;
+    const token = req.cookies.token;
     if (token) {
       try {
         jwt.verify(token, process.env.SECRET_KEY_JWT);
@@ -145,7 +143,46 @@ const checkOtpVerified = async (req, res, next) => {
     res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
+const Isadmin = async(req,res,next) => {
+  try {
+    const token = req.cookies.token;  
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "You need to log in to access this resource."
+        })
+    }
+    const decoded = jwt.verify(token, process.env.SECRET_KEY_JWT);
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message : 'User not found. Please log in again.'
+        })
+    }
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Admins only."
+      });
+    }
+
+    // Attach user to the request object
+    req.user = user;
+
+    // Continue to the next middleware or route
+    next();
+  }
+  catch(error) {
+    console.log(error);
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token. Please log in again."
+    });
+  }
+}
 
 
 
-module.exports ={isLoggedIn,preventReLogin,IsSeller,verifyOtpInitiation,checkOtpVerified,ISUser};
+module.exports ={isLoggedIn,preventReLogin,IsSeller,verifyOtpInitiation,checkOtpVerified,ISUser,Isadmin};
