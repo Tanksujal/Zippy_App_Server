@@ -498,7 +498,7 @@ transporter.verify((error, success) => {
   const generateInvoicePdf = async(order, res) => {
     const html = generateInvoiceHtml(order); // HTML for the invoice
     const options = { format: 'A4' };
-    const invoicePath = `../invoices/${order._id}.pdf`;
+    const invoicePath = `./invoices/${order._id}.pdf`;
     pdf.create(html, options).toFile(invoicePath, (err, result) => {
       if (err) {
         return res.status(500).send('Error generating PDF');
