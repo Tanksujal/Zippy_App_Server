@@ -1,11 +1,5 @@
 const Usermodel = require('../models/user')
 const jwt =  require('jsonwebtoken')
-// const twilio = require('twilio')
-// const accountSid = process.env.TWILIO_ACCOUNT_SID;
-// const authToken = process.env.TWILIO_AUTH_TOKEN;
-// const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;   // Twilio phone number from which OTP will be sent
-
-// const client = twilio(accountSid, authToken);
 const sentOtp = async(req,res) => {
   const  {mobileNumber} = req.body;
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -24,30 +18,32 @@ const sentOtp = async(req,res) => {
           user.otpExpires = otpExpires;
         }
         const token = jwt.sign({ mobileNumber, otp, otpExpires }, process.env.SECRET_KEY_JWT, { expiresIn: "10m" });
-        console.log(token);
+      
     
         res.cookie('token', token, {
-        //   httpOnly: true,
-        //   secure: false, // Set to 'true' in production
-        //   sameSite: 'Lax', // Adjust as necessary
-        //   maxAge: 3600000 // 1 hour
+          httpOnly: true,
+          secure: true, // Set to 'true' in production
+          sameSite: 'None', // Adjust as necessary
+          maxAge: 3600000 // 1 hour
         });
-        
     
         res.status(200).send({
           success : true,
            message: `OTP sent.`, otp
-        }); // Remove OTP in production
+          }); // Remove OTP in production
       } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Internal server error." });
       }
-}
 
+
+}
 const VerifyOtp = async (req, res) => {
   try {
     const { otp } = req.body;
     const token = req.cookies.token;
+    console.log(token);
+    
 
     if (!token) {
       return res.status(400).send({ 
@@ -88,14 +84,15 @@ const VerifyOtp = async (req, res) => {
       const newToken = jwt.sign(
         { id: user._id, mobileNumber: user.mobileNumber },
         process.env.SECRET_KEY_JWT,
-        { expiresIn: "7d" }
+        { expiresIn: "120m" }
       );
 
       // Set the new token as a cookie
       res.cookie('token', newToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 2 * 60 * 60 * 1000  // 10 minutes
+        secure: true, // Set to 'true' in production
+        sameSite: 'None', // Adjust as necessary
+        maxAge: 3600000 // 1 hour // 10 minutes
       });
       res.status(200).send({
         success: true,
@@ -242,10 +239,6 @@ const getadmin = async(req,res) => {
     
   }
 }
-
-
-
-
 module.exports = {
     sentOtp , VerifyOtp ,logout,alluser,getuser,getAuth,updateUser,getadmin
 }

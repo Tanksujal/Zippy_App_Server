@@ -21,10 +21,10 @@ const sentOtp = async(req,res) => {
           console.log(token);
       
           res.cookie('verifytoken', token, {
-          //   httpOnly: true,
-          //   secure: false, // Set to 'true' in production
-          //   sameSite: 'Lax', // Adjust as necessary
-          //   maxAge: 3600000 // 1 hour
+            httpOnly: true,
+            secure: true, // Set to 'true' in production
+            sameSite: 'None', // Adjust as necessary
+            maxAge: 3600000 // 1 hour
           });
       
           res.status(200).send({success : true, message: `OTP sent.`, otp, token }); // Remove OTP in production
@@ -86,7 +86,12 @@ const VerifyOtp = async (req, res) => {
         );
       
         // Set the new token as a cookie
-        res.cookie('sellertoken', newToken);
+        res.cookie('sellertoken', newToken),{
+          httpOnly: true,
+            secure: true, // Set to 'true' in production
+            sameSite: 'None', // Adjust as necessary
+            maxAge: 3600000 // 1 hour
+        };
         res.status(200).send({
           success: true,
           message: "OTP verified and user registered/updated successfully.",
@@ -195,14 +200,15 @@ const SellerLogin = async (req, res) => {
     const token = jwt.sign(
       { id: seller._id, username: seller.username },
       process.env.SECRET_KEY_JWT,
-      { expiresIn: "7d" } // Token expires in 1 hour
+      { expiresIn: "1h" } // Token expires in 1 hour
     );
 
     // Send the token as a cookie
     res.cookie('maintoken', token, {
-      // httpOnly: true,
-      // secure: process.env.NODE_ENV === 'production', // Set to true in production
-      maxAge :7*24*60*60*1000
+      httpOnly: true,
+      secure: true, // Set to 'true' in production
+      sameSite: 'None', // Adjust as necessary
+      maxAge: 3600000 // 1 hour
     });
 
     // Send the response
@@ -221,7 +227,7 @@ const SellerLogin = async (req, res) => {
   }
 };
 const logout = (req, res) => {
-  res.clearCookie('sellertoken'); // Clear seller token cookie
+  res.clearCookie('maintoken'); // Clear seller token cookie
   if (!req.cookies.sellertoken) {
     return res.status(400).json({
       success: false,
@@ -241,7 +247,6 @@ const getOrdersForSeller = async (req, res) => {
       const orders = await Order.find({ 'items.sellerId': sellerId })
         .populate('items.product') // Populate product details if needed
         .populate('user', 'name email'); // Optionally, populate the user details (name, email, etc.)
-  console.log(orders);
   
       if (orders.length === 0) {
         return res.status(404).send({
@@ -313,7 +318,10 @@ const Totalsellers = async(req,res) => {
     })
   }
 }
+const Forgotpass = async(req,res) => {
 
+}
+  
 module.exports = {
     sentOtp,VerifyOtp,logout,getOrdersForSeller,getAuth,setUsernamePassword,SellerLogin,getorderdetails,Totalsellers
 }
